@@ -1,0 +1,256 @@
+name: PushUp Tracker App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Create PushUp App
+        run: |
+          # Crear estructura
+          mkdir -p Payload/PushUpTracker.app
+          
+          # Info.plist
+          cat > Payload/PushUpTracker.app/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>PushUpTracker</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.emikel48.PushUpTracker</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>PushUpTracker</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UIDeviceFamily</key>
+              <array>
+                <integer>1</integer>
+              </array>
+              <key>UISupportedInterfaceOrientations</key>
+              <array>
+                <string>UIInterfaceOrientationPortrait</string>
+              </array>
+          </dict>
+          </plist>
+          EOF
+          
+          # AppDelegate.swift
+          cat > AppDelegate.swift << 'EOF'
+          import UIKit
+          
+          @main
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
+              
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  window = UIWindow(frame: UIScreen.main.bounds)
+                  window?.rootViewController = ViewController()
+                  window?.makeKeyAndVisible()
+                  return true
+              }
+          }
+          EOF
+          
+          # ViewController.swift (App completa de flexiones)
+          cat > ViewController.swift << 'EOF'
+          import UIKit
+          import AVFoundation
+          
+          class ViewController: UIViewController {
+              // Variables
+              var counter = 0
+              var currentDay = 1
+              var pattern = [2, 3, 4, 3, 2]
+              var currentSet = 0
+              var repsInSet = 0
+              var isResting = false
+              var restSeconds = 0
+              var timer: Timer?
+              
+              // UI Elements
+              var dayLabel: UILabel!
+              var patternLabel: UILabel!
+              var setLabel: UILabel!
+              var counterLabel: UILabel!
+              var statusLabel: UILabel!
+              var restLabel: UILabel!
+              
+              override func viewDidLoad() {
+                  super.viewDidLoad()
+                  setupUI()
+                  loadProgress()
+                  updateDisplay()
+                  
+                  let tap = UITapGestureRecognizer(target: self, action: #selector(didTap))
+                  view.addGestureRecognizer(tap)
+              }
+              
+              func setupUI() {
+                  view.backgroundColor = .systemBackground
+                  
+                  dayLabel = createLabel(fontSize: 20, text: "Día 1")
+                  patternLabel = createLabel(fontSize: 16, text: "Patrón: 2-3-4-3-2")
+                  setLabel = createLabel(fontSize: 18, text: "Serie 1/5: 0/2")
+                  counterLabel = createLabel(fontSize: 64, text: "0", color: .systemGreen)
+                  statusLabel = createLabel(fontSize: 24, text: "👃 Toca con tu nariz")
+                  restLabel = createLabel(fontSize: 18, text: "")
+                  restLabel.isHidden = true
+                  
+                  let resetButton = UIButton(type: .system)
+                  resetButton.setTitle("Reiniciar Día", for: .normal)
+                  resetButton.backgroundColor = .systemOrange
+                  resetButton.setTitleColor(.white, for: .normal)
+                  resetButton.layer.cornerRadius = 10
+                  resetButton.addTarget(self, action: #selector(resetDay), for: .touchUpInside)
+                  
+                  let stack = UIStackView(arrangedSubviews: [dayLabel, patternLabel, setLabel, counterLabel, statusLabel, restLabel, resetButton])
+                  stack.axis = .vertical
+                  stack.spacing = 20
+                  stack.alignment = .center
+                  stack.translatesAutoresizingMaskIntoConstraints = false
+                  view.addSubview(stack)
+                  
+                  NSLayoutConstraint.activate([
+                      stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                      stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+                      resetButton.widthAnchor.constraint(equalToConstant: 150),
+                      resetButton.heightAnchor.constraint(equalToConstant: 44)
+                  ])
+              }
+              
+              func createLabel(fontSize: CGFloat, text: String, color: UIColor = .label) -> UILabel {
+                  let label = UILabel()
+                  label.text = text
+                  label.font = .systemFont(ofSize: fontSize, weight: .medium)
+                  label.textAlignment = .center
+                  label.textColor = color
+                  label.numberOfLines = 0
+                  return label
+              }
+              
+              @objc func didTap() {
+                  if isResting { return }
+                  
+                  counter += 1
+                  repsInSet += 1
+                  counterLabel.text = "\(counter)"
+                  
+                  let generator = UIImpactFeedbackGenerator(style: .light)
+                  generator.impactOccurred()
+                  
+                  saveProgress()
+                  updateDisplay()
+                  
+                  if repsInSet >= pattern[currentSet] {
+                      startRest()
+                  }
+              }
+              
+              func startRest() {
+                  isResting = true
+                  restSeconds = 30
+                  restLabel.isHidden = false
+                  statusLabel.text = "⏸️ Descanso"
+                  
+                  timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                      self.restSeconds -= 1
+                      self.restLabel.text = "Descanso: \(self.restSeconds)s"
+                      
+                      if self.restSeconds <= 0 {
+                          self.timer?.invalidate()
+                          self.isResting = false
+                          self.restLabel.isHidden = true
+                          self.statusLabel.text = "👃 ¡Continúa!"
+                          
+                          self.currentSet += 1
+                          if self.currentSet >= self.pattern.count {
+                              self.currentSet = 0
+                          }
+                          self.repsInSet = 0
+                          self.saveProgress()
+                          self.updateDisplay()
+                      }
+                  }
+              }
+              
+              func updateDisplay() {
+                  dayLabel.text = "📅 Día \(currentDay)"
+                  patternLabel.text = "📊 Patrón: \(pattern.map { String($0) }.joined(separator: "-"))"
+                  let needed = pattern[currentSet]
+                  setLabel.text = "🎯 Serie \(currentSet + 1)/\(pattern.count): \(repsInSet)/\(needed)"
+                  
+                  if repsInSet >= needed {
+                      setLabel.textColor = .systemGreen
+                  } else {
+                      setLabel.textColor = .label
+                  }
+              }
+              
+              func loadProgress() {
+                  let defaults = UserDefaults.standard
+                  counter = defaults.integer(forKey: "counter")
+                  currentDay = defaults.integer(forKey: "currentDay")
+                  if currentDay == 0 { currentDay = 1 }
+                  currentSet = defaults.integer(forKey: "currentSet")
+                  repsInSet = defaults.integer(forKey: "repsInSet")
+                  
+                  // Actualizar patrón según el día
+                  let first = min(currentDay + 1, 8)
+                  pattern = [first, min(first+1,9), min(first+1,9), max(first,2), max(first-1,2)]
+              }
+              
+              func saveProgress() {
+                  let defaults = UserDefaults.standard
+                  defaults.set(counter, forKey: "counter")
+                  defaults.set(currentDay, forKey: "currentDay")
+                  defaults.set(currentSet, forKey: "currentSet")
+                  defaults.set(repsInSet, forKey: "repsInSet")
+              }
+              
+              @objc func resetDay() {
+                  counter = 0
+                  currentSet = 0
+                  repsInSet = 0
+                  saveProgress()
+                  updateDisplay()
+                  counterLabel.text = "0"
+                  statusLabel.text = "👃 Día reiniciado"
+                  
+                  let generator = UINotificationFeedbackGenerator()
+                  generator.notificationOccurred(.success)
+              }
+          }
+          EOF
+          
+          # Compilar
+          swiftc -sdk $(xcrun --show-sdk-path --sdk iphoneos) \
+                 -target arm64-apple-ios15.0 \
+                 -emit-executable \
+                 -o Payload/PushUpTracker.app/PushUpTracker \
+                 AppDelegate.swift ViewController.swift
+          
+          # Crear IPA
+          cd Payload
+          zip -r ../PushUpTracker.ipa .
+          cd ..
+      
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PushUpTracker.ipa
+          path: PushUpTracker.ipa
