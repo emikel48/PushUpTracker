@@ -1,0 +1,53 @@
+name: Crear IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Crear app simple
+        run: |
+          # Crear estructura
+          mkdir -p Payload/MiApp.app
+          
+          # Crear binario simple
+          echo '#!/bin/bash' > Payload/MiApp.app/MiApp
+          echo 'echo "PushUp Tracker"' >> Payload/MiApp.app/MiApp
+          chmod +x Payload/MiApp.app/MiApp
+          
+          # Crear Info.plist
+          cat > Payload/MiApp.app/Info.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>MiApp</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.test.MiApp</string>
+              <key>CFBundleName</key>
+              <string>MiApp</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+          </dict>
+          </plist>
+          EOF
+          
+          # Crear IPA
+          cd Payload
+          zip -r ../MiApp.ipa .
+          cd ..
+          
+          # Verificar que se creó
+          ls -la MiApp.ipa
+      
+      - name: Subir IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiApp.ipa
+          path: MiApp.ipa
